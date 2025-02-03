@@ -1,0 +1,53 @@
+{
+  "name": "cube-ts",
+  "version": "0.1.0",
+  "description": "A TypeScript utility for handling type-safe interactions with cube.js cubes",
+  "keywords": [
+    "cube.js",
+    "typescript"
+  ],
+  "homepage": "https://github.com/benhall-7/cube-ts",
+  "bugs": {
+    "url": "https://github.com/benhall-7/cube-ts/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benhall-7/cube-ts.git"
+  },
+  "license": "MIT",
+  "author": "Benjamin Hall",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.esn.js",
+  "typings": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.esm.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "test",
+    "build": "npx tsup src/index.ts",
+    "lint": "npx eslint",
+    "format": "npx prettier --write \"src/**/*.+(js|ts|json)\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/jest": "^29.5.14",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "eslint": "^9.19.0",
+    "eslint-config-prettier": "^10.0.1",
+    "globals": "^15.14.0",
+    "jest": "^29.7.0",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.3.6",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.22.0"
+  },
+  "dependencies": {
+    "@cubejs-client/core": "^1.1.12"
+  }
+}
