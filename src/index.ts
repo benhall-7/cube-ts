@@ -1,18 +1,17 @@
 import {
   BinaryOperator,
-  CubeApi,
   UnaryOperator,
   type Query,
 } from "@cubejs-client/core";
 
-type MemberType = "string" | "time" | "boolean" | "number";
-type Member = {
+export type MemberType = "string" | "time" | "boolean" | "number";
+export type Member = {
   type: MemberType;
   parser: (input: unknown) => unknown;
 };
 type Keys = Record<string, Member>;
 
-class CubeDef<
+export class CubeDef<
   Measures extends Keys,
   Dimensions extends Keys,
   Segments extends string
@@ -61,52 +60,7 @@ class CubeDef<
   }
 }
 
-/*
-
-  export type Filter = BinaryFilter | UnaryFilter | LogicalOrFilter | LogicalAndFilter;
-  export type LogicalAndFilter = {
-    and: Filter[];
-  };
-
-  export type LogicalOrFilter = {
-    or: Filter[];
-  };
-
-  export interface BinaryFilter {
-    dimension?: string;
-    member?: string;
-    operator: BinaryOperator;
-    values: string[];
-  }
-  export interface UnaryFilter {
-    dimension?: string;
-    member?: string;
-    operator: UnaryOperator;
-    values?: never;
-  }
-  export type UnaryOperator = 'set' | 'notSet';
-  export type BinaryOperator =
-    | 'equals'
-    | 'notEquals'
-    | 'contains'
-    | 'notContains'
-    | 'startsWith'
-    | 'notStartsWith'
-    | 'endsWith'
-    | 'notEndsWith'
-    | 'gt'
-    | 'gte'
-    | 'lt'
-    | 'lte'
-    | 'inDateRange'
-    | 'notInDateRange'
-    | 'beforeDate'
-    | 'beforeOrOnDate'
-    | 'afterDate'
-    | 'afterOrOnDate';
-*/
-
-type Filter<Measures extends string, Dimensions extends string> =
+export type Filter<Measures extends string, Dimensions extends string> =
   | UnaryFilter<Measures>
   | UnaryFilter<Dimensions>
   | BinaryFilter<Measures>
@@ -118,27 +72,27 @@ type Filter<Measures extends string, Dimensions extends string> =
   | LogicalOrFilter<Measures, never>
   | LogicalOrFilter<never, Dimensions>;
 // TODO: restrict values to the correct type
-type BinaryFilter<Member extends string> = {
+export type BinaryFilter<Member extends string> = {
   member: Member;
   operator: BinaryOperator;
   values: string[];
 };
 
-type UnaryFilter<Member extends string> = {
+export type UnaryFilter<Member extends string> = {
   member: Member;
   operator: UnaryOperator;
   values?: never;
 };
 
-type LogicalAndFilter<Measures extends string, Dimensions extends string> = {
+export type LogicalAndFilter<Measures extends string, Dimensions extends string> = {
   and: Filter<Measures, Dimensions>[];
 };
 
-type LogicalOrFilter<Measures extends string, Dimensions extends string> = {
+export type LogicalOrFilter<Measures extends string, Dimensions extends string> = {
   or: Filter<Measures, Dimensions>[];
 };
 
-type Row<
+export type Row<
   Measures extends Keys,
   Dimensions extends Keys,
   InputMeasures extends keyof Measures,
@@ -149,7 +103,7 @@ type Row<
   [K in InputDimensions]: ReturnType<Dimensions[K]["parser"]>;
 };
 
-type QueryBuilder<
+export type QueryBuilder<
   Measures extends Keys,
   Dimensions extends Keys,
   Segments extends string,
@@ -185,7 +139,7 @@ type QueryBuilder<
   >;
   /**
    * returns a Query object that can be passed to the Cube.js REST endpoint,
-   * and a function to parse individual rows
+   * and a function to parse the pivot rows from the response
    */
   finalize(): [
     Query,
@@ -195,7 +149,7 @@ type QueryBuilder<
   ];
 };
 
-function queryBuilder<
+export function queryBuilder<
   Measures extends Keys,
   Dimensions extends Keys,
   Segments extends string,
@@ -242,8 +196,8 @@ function queryBuilder<
         // row parser
         (row: Record<string, unknown>) => ({
           ...measures.reduce((acc, ms) => {
-            const key = cube.measure(ms);
-            const parsed = cube.measures[ms].parser(row[key]) as ReturnType<
+            const col = row[cube.measure(ms)];
+            const parsed = cube.measures[ms].parser(col) as ReturnType<
               Measures[InputMeasures]["parser"]
             >;
             acc[ms] = parsed;
@@ -251,8 +205,8 @@ function queryBuilder<
           }, {} as { [K in InputMeasures]: ReturnType<Measures[K]["parser"]> }),
 
           ...dimensions.reduce((acc, dm) => {
-            const key = cube.dimension(dm);
-            const parsed = cube.dimensions[dm].parser(row[key]) as ReturnType<
+            const col = row[cube.dimension(dm)];
+            const parsed = cube.dimensions[dm].parser(col) as ReturnType<
               Dimensions[InputDimensions]["parser"]
             >;
             acc[dm] = parsed;
@@ -262,33 +216,4 @@ function queryBuilder<
       ];
     },
   };
-}
-
-const cubeDef = new CubeDef(
-  "test",
-  {
-    myMeasure: { type: "number", parser: Number },
-    myOther: { type: "boolean", parser: Boolean },
-    myThird: { type: "string", parser: String },
-  },
-  {
-    myDimension: { type: "string", parser: String },
-  },
-  ["segment_1", "segment_2"]
-);
-
-async function testCube() {
-  const api = new CubeApi();
-
-  const [query, rowReader] = cubeDef
-    .buildQuery()
-    .measure("myMeasure")
-    .measure("myOther")
-    .dimension("myDimension")
-    .finalize();
-
-  const response = await api.load(query);
-  const table = response.tablePivot()[0];
-  const row = rowReader(table);
-  console.log(row.myMeasure, row.myOther, row.myDimension);
 }
