@@ -1,17 +1,17 @@
 import { CubeApi } from "@cubejs-client/core";
 
-import { CubeDef } from "./";
+import { CubeDef, m } from "./";
 
 describe("", () => {
   const cubeDef = new CubeDef(
     "test",
     {
-      myMeasure: { type: "number", parser: Number },
-      myOther: { type: "boolean", parser: Boolean },
-      myThird: { type: "string", parser: String },
+      myMeasure: m.number,
+      myOther: m.boolean,
+      myThird: m.string,
     },
     {
-      myDimension: { type: "string", parser: String },
+      myDimension: m.string,
     },
     ["segment_1", "segment_2"]
   );

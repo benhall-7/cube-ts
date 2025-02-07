@@ -1,16 +1,113 @@
-import {
-  BinaryOperator,
-  UnaryOperator,
-  type Query,
-} from "@cubejs-client/core";
+import { BinaryOperator, UnaryOperator, type Query } from "@cubejs-client/core";
 
-export type MemberType = "string" | "time" | "boolean" | "number";
-export type Member = {
-  type: MemberType;
-  parser: (input: unknown) => unknown;
+/**
+ * The "type" of the filter operations which can be used
+ */
+export type FilterType = "number" | "time" | "any";
+/**
+ * The object
+ */
+export type Member<T> = {
+  filter: FilterType;
+  deserialize: (input: unknown) => T;
+  serialize: (input: T) => string;
 };
-type Keys = Record<string, Member>;
 
+/**
+ * A convenience method for eliding the type param T when
+ * declaring the member. For example:
+ *
+ * ```
+ * const myMemberType = elideMember({
+ *   filter: "string",
+ *   deserialize: Number,
+ *   serialize: String,
+ * });
+ * ```
+ *
+ * @param member the object details
+ * @returns the object with no modifications, but with the
+ * type T automatically elided based on context
+ */
+export function elideMember<T>(member: Member<T>) {
+  return member;
+}
+
+/**
+ * An object containing predefined members for use in defining
+ * cubes. The end user can still define their own members with
+ * custom serialization logic
+ */
+export const m = {
+  /**
+   * A configuration that reads strings. The deserializer expects
+   * string inputs. Defaults to an empty string
+   */
+  string: elideMember({
+    filter: "any",
+    deserialize: (input: unknown) => {
+      if (typeof input === "string") {
+        return input;
+      }
+      return "";
+    },
+    serialize: String,
+  }),
+  /**
+   * A configuration that reads Dates. The deserializer expects
+   * strings with parsable values. Defaults to Unix epoch. The
+   * serializer uses the .toISOString method
+   */
+  time: elideMember({
+    filter: "time",
+    deserialize: (input: unknown) => {
+      if (typeof input === "string") {
+        const timestamp = Date.parse(input);
+        if (isNaN(timestamp)) {
+          return new Date();
+        }
+        return new Date(timestamp);
+      }
+      return new Date();
+    },
+    serialize: Date.prototype.toISOString,
+  }),
+  /**
+   * A configuration that reads booleans. The deserializer expects
+   * strings with values of "true" or "false". Defaults to false.
+   */
+  boolean: elideMember({
+    filter: "any",
+    deserialize: (input: unknown) => {
+      if (typeof input === "string") {
+        return input !== "false";
+      }
+      return false;
+    },
+    serialize: String,
+  }),
+  number: elideMember({
+    filter: "any",
+    deserialize: (input: unknown) => {
+      if (typeof input === "string") {
+        return Number(input);
+      }
+      return 0;
+    },
+    serialize: String,
+  }),
+};
+
+// An acceptable use of "any", because there's no way to know
+// how many properties Keys has, or which type each Member is
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Keys = Record<string, Member<any>>;
+
+/**
+ * A class for encapsulating a cube, which should reflect the
+ * definition of the cube on the Cube.js server
+ */
 export class CubeDef<
   Measures extends Keys,
   Dimensions extends Keys,
@@ -33,6 +130,10 @@ export class CubeDef<
     this.segments = segments;
   }
 
+  /**
+   * @returns a builder closure that can be used to add measures, dimensions,
+   * segments, etc, and produce typesafe parsers for the cube.js response
+   */
   buildQuery(): QueryBuilder<Measures, Dimensions, Segments, never, never> {
     return queryBuilder(this, [], [], []);
   }
@@ -84,11 +185,17 @@ export type UnaryFilter<Member extends string> = {
   values?: never;
 };
 
-export type LogicalAndFilter<Measures extends string, Dimensions extends string> = {
+export type LogicalAndFilter<
+  Measures extends string,
+  Dimensions extends string
+> = {
   and: Filter<Measures, Dimensions>[];
 };
 
-export type LogicalOrFilter<Measures extends string, Dimensions extends string> = {
+export type LogicalOrFilter<
+  Measures extends string,
+  Dimensions extends string
+> = {
   or: Filter<Measures, Dimensions>[];
 };
 
@@ -98,9 +205,9 @@ export type Row<
   InputMeasures extends keyof Measures,
   InputDimensions extends keyof Dimensions
 > = {
-  [K in InputMeasures]: ReturnType<Measures[K]["parser"]>;
+  [K in InputMeasures]: ReturnType<Measures[K]["deserialize"]>;
 } & {
-  [K in InputDimensions]: ReturnType<Dimensions[K]["parser"]>;
+  [K in InputDimensions]: ReturnType<Dimensions[K]["deserialize"]>;
 };
 
 export type QueryBuilder<
@@ -197,21 +304,21 @@ export function queryBuilder<
         (row: Record<string, unknown>) => ({
           ...measures.reduce((acc, ms) => {
             const col = row[cube.measure(ms)];
-            const parsed = cube.measures[ms].parser(col) as ReturnType<
-              Measures[InputMeasures]["parser"]
+            const parsed = cube.measures[ms].deserialize(col) as ReturnType<
+              Measures[InputMeasures]["deserialize"]
             >;
             acc[ms] = parsed;
             return acc;
-          }, {} as { [K in InputMeasures]: ReturnType<Measures[K]["parser"]> }),
+          }, {} as { [K in InputMeasures]: ReturnType<Measures[K]["deserialize"]> }),
 
           ...dimensions.reduce((acc, dm) => {
             const col = row[cube.dimension(dm)];
-            const parsed = cube.dimensions[dm].parser(col) as ReturnType<
-              Dimensions[InputDimensions]["parser"]
+            const parsed = cube.dimensions[dm].deserialize(col) as ReturnType<
+              Dimensions[InputDimensions]["deserialize"]
             >;
             acc[dm] = parsed;
             return acc;
-          }, {} as { [K in InputDimensions]: ReturnType<Dimensions[K]["parser"]> }),
+          }, {} as { [K in InputDimensions]: ReturnType<Dimensions[K]["deserialize"]> }),
         }),
       ];
     },
