@@ -1,17 +1,7 @@
-import { BinaryOperator, UnaryOperator, type Query } from "@cubejs-client/core";
+import { Filter, type Query } from "@cubejs-client/core";
 
-/**
- * The "type" of the filter operations which can be used
- */
-export type FilterType = "number" | "time" | "any";
-/**
- * The object
- */
-export type Member<T> = {
-  filter: FilterType;
-  deserialize: (input: unknown) => T;
-  serialize: (input: T) => string;
-};
+import { MemberConfig, Keys, Row, FilterType } from "./base";
+import { filterBuilder, FilterBuilder, FilterResult } from "./filter";
 
 /**
  * A convenience method for eliding the type param T when
@@ -29,7 +19,9 @@ export type Member<T> = {
  * @returns the object with no modifications, but with the
  * type T automatically elided based on context
  */
-export function elideMember<T>(member: Member<T>) {
+export function elideMember<T, FT extends FilterType>(
+  member: MemberConfig<T, FT>
+) {
   return member;
 }
 
@@ -44,7 +36,7 @@ export const m = {
    * string inputs. Defaults to an empty string
    */
   string: elideMember({
-    filter: "any",
+    filter: "string",
     deserialize: (input: unknown) => {
       if (typeof input === "string") {
         return input;
@@ -70,14 +62,14 @@ export const m = {
       }
       return new Date();
     },
-    serialize: Date.prototype.toISOString,
+    serialize: (date: Date) => date.toISOString(),
   }),
   /**
    * A configuration that reads booleans. The deserializer expects
    * strings with values of "true" or "false". Defaults to false.
    */
   boolean: elideMember({
-    filter: "any",
+    filter: "string",
     deserialize: (input: unknown) => {
       if (typeof input === "string") {
         return input !== "false";
@@ -87,7 +79,7 @@ export const m = {
     serialize: String,
   }),
   number: elideMember({
-    filter: "any",
+    filter: "number",
     deserialize: (input: unknown) => {
       if (typeof input === "string") {
         return Number(input);
@@ -97,12 +89,6 @@ export const m = {
     serialize: String,
   }),
 };
-
-// An acceptable use of "any", because there's no way to know
-// how many properties Keys has, or which type each Member is
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Keys = Record<string, Member<any>>;
 
 /**
  * A class for encapsulating a cube, which should reflect the
@@ -135,7 +121,7 @@ export class CubeDef<
    * segments, etc, and produce typesafe parsers for the cube.js response
    */
   buildQuery(): QueryBuilder<Measures, Dimensions, Segments, never, never> {
-    return queryBuilder(this, [], [], []);
+    return queryBuilder(this, [], [], [], filterBuilder(this, []));
   }
 
   /**
@@ -159,56 +145,14 @@ export class CubeDef<
   segment(name: Segments): string {
     return `${this.name}.${name}`;
   }
+  /**
+   * @param name the name of the measure or dimension
+   * @returns the "full path" of the cube member
+   */
+  member<Name extends keyof (Measures & Dimensions)>(name: Name): string {
+    return `${this.name}.${String(name)}`;
+  }
 }
-
-export type Filter<Measures extends string, Dimensions extends string> =
-  | UnaryFilter<Measures>
-  | UnaryFilter<Dimensions>
-  | BinaryFilter<Measures>
-  | BinaryFilter<Dimensions>
-  // can't mix-and-match measures and dimensions in these filter
-  // types, so we use never to exclude them recursively
-  | LogicalAndFilter<Measures, never>
-  | LogicalAndFilter<never, Dimensions>
-  | LogicalOrFilter<Measures, never>
-  | LogicalOrFilter<never, Dimensions>;
-// TODO: restrict values to the correct type
-export type BinaryFilter<Member extends string> = {
-  member: Member;
-  operator: BinaryOperator;
-  values: string[];
-};
-
-export type UnaryFilter<Member extends string> = {
-  member: Member;
-  operator: UnaryOperator;
-  values?: never;
-};
-
-export type LogicalAndFilter<
-  Measures extends string,
-  Dimensions extends string
-> = {
-  and: Filter<Measures, Dimensions>[];
-};
-
-export type LogicalOrFilter<
-  Measures extends string,
-  Dimensions extends string
-> = {
-  or: Filter<Measures, Dimensions>[];
-};
-
-export type Row<
-  Measures extends Keys,
-  Dimensions extends Keys,
-  InputMeasures extends keyof Measures,
-  InputDimensions extends keyof Dimensions
-> = {
-  [K in InputMeasures]: ReturnType<Measures[K]["deserialize"]>;
-} & {
-  [K in InputDimensions]: ReturnType<Dimensions[K]["deserialize"]>;
-};
 
 export type QueryBuilder<
   Measures extends Keys,
@@ -236,7 +180,18 @@ export type QueryBuilder<
     InputDimensions | Name
   >;
   segment(
-    name: Segments[number]
+    name: Segments
+  ): QueryBuilder<
+    Measures,
+    Dimensions,
+    Segments,
+    InputMeasures,
+    InputDimensions
+  >;
+  filter(
+    cb: (
+      filter: FilterBuilder<Pick<Measures, InputMeasures>, Dimensions>
+    ) => FilterBuilder<Pick<Measures, InputMeasures>, Dimensions>
   ): QueryBuilder<
     Measures,
     Dimensions,
@@ -256,6 +211,12 @@ export type QueryBuilder<
   ];
 };
 
+type FilterBuilderRestricted<
+  Measures extends Keys,
+  Dimensions extends Keys,
+  InputMeasures extends keyof Measures
+> = FilterBuilder<Pick<Measures, InputMeasures>, Dimensions>;
+
 export function queryBuilder<
   Measures extends Keys,
   Dimensions extends Keys,
@@ -266,7 +227,8 @@ export function queryBuilder<
   cube: CubeDef<Measures, Dimensions, Segments>,
   measures: InputMeasures[],
   dimensions: InputDimensions[],
-  segments: Segments[]
+  segments: Segments[],
+  filterBuilder: FilterBuilderRestricted<Measures, Dimensions, InputMeasures>
 ): QueryBuilder<
   Measures,
   Dimensions,
@@ -276,13 +238,44 @@ export function queryBuilder<
 > {
   return {
     measure: <Name extends keyof Measures>(name: Name) => {
-      return queryBuilder(cube, [...measures, name], dimensions, segments);
+      return queryBuilder(
+        cube,
+        [...measures, name],
+        dimensions,
+        segments,
+        filterBuilder
+      );
     },
     dimension: <Name extends keyof Dimensions>(name: Name) => {
-      return queryBuilder(cube, measures, [...dimensions, name], segments);
+      return queryBuilder(
+        cube,
+        measures,
+        [...dimensions, name],
+        segments,
+        filterBuilder
+      );
     },
     segment: (name: Segments) => {
-      return queryBuilder(cube, measures, dimensions, [...segments, name]);
+      return queryBuilder(
+        cube,
+        measures,
+        dimensions,
+        [...segments, name],
+        filterBuilder
+      );
+    },
+    filter: (
+      cb: (
+        filter: FilterBuilder<Pick<Measures, InputMeasures>, Dimensions>
+      ) => FilterBuilder<Pick<Measures, InputMeasures>, Dimensions>
+    ) => {
+      return queryBuilder(
+        cube,
+        measures,
+        dimensions,
+        segments,
+        cb(filterBuilder)
+      );
     },
     finalize: () => {
       const query: Query = {};
@@ -293,10 +286,47 @@ export function queryBuilder<
       if (dimensions.length) {
         query.dimensions = dimensions.map((dm) => cube.dimension(dm));
       }
+      if (segments.length) {
+        query.segments = segments.map((sg) => cube.segment(sg));
+      }
 
-      query.filters = [{ member: "test", operator: "set" }];
+      // recursive filter conversion
+      const baseFilterLayer = filterBuilder.finalize();
+      function getFilters<M extends Keys, D extends Keys>(
+        filterLayer: FilterResult<M, D>[]
+      ): Filter[] {
+        return filterLayer.map((filterResult) => {
+          if ("and" in filterResult) {
+            return { and: getFilters(filterResult.and) };
+          }
+          if ("or" in filterResult) {
+            return { or: getFilters(filterResult.or) };
+          }
+          if ("values" in filterResult && filterResult.values) {
+            return {
+              member: cube.member(filterResult.member),
+              operator: filterResult.operator,
+              values: filterResult.values.map((value) => {
+                console.log({ filterResult, cube, value });
+                const members = {
+                  ...cube.measures,
+                  ...cube.dimensions,
+                };
 
-      query.segments = ["test"];
+                return members[filterResult.member].serialize(value);
+              }),
+            };
+          }
+          return {
+            member: cube.member(filterResult.member),
+            operator: filterResult.operator,
+          };
+        });
+      }
+      const filters = getFilters(baseFilterLayer);
+      if (filters.length) {
+        query.filters = filters;
+      }
 
       return [
         query,

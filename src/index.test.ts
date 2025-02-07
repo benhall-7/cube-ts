@@ -1,10 +1,8 @@
-import { CubeApi } from "@cubejs-client/core";
-
 import { CubeDef, m } from "./";
 
-describe("", () => {
+describe(CubeDef, () => {
   const cubeDef = new CubeDef(
-    "test",
+    "MyCube",
     {
       myMeasure: m.number,
       myOther: m.boolean,
@@ -12,23 +10,62 @@ describe("", () => {
     },
     {
       myDimension: m.string,
+      myOtherDimension: m.time,
     },
-    ["segment_1", "segment_2"]
+    ["segment1", "segment2"]
   );
 
-  it("", async () => {
-    const api = new CubeApi();
-
-    const [query, rowReader] = cubeDef
+  it("generates schemas correctly", async () => {
+    const [query] = cubeDef
       .buildQuery()
       .measure("myMeasure")
       .measure("myOther")
       .dimension("myDimension")
+      .segment("segment1")
+      .filter((builder) =>
+        builder
+          .binaryFilter({
+            member: "myMeasure",
+            operator: "gte",
+            values: [42],
+          })
+          .orDimensionFilter((builder) =>
+            builder
+              .binaryFilter({
+                member: "myDimension",
+                operator: "startsWith",
+                values: ["prefix_"],
+              })
+              .binaryFilter({
+                member: "myOtherDimension",
+                operator: "beforeDate",
+                values: [new Date("2025-01-01")],
+              })
+          )
+      )
       .finalize();
 
-    const response = await api.load(query);
-    const table = response.tablePivot()[0];
-    const row = rowReader(table);
-    console.log(row.myMeasure, row.myOther, row.myDimension);
+    expect(query).toEqual({
+      measures: ["MyCube.myMeasure", "MyCube.myOther"],
+      dimensions: ["MyCube.myDimension"],
+      segments: ["MyCube.segment1"],
+      filters: [
+        { member: "MyCube.myMeasure", operator: "gte", values: ["42"] },
+        {
+          or: [
+            {
+              member: "MyCube.myDimension",
+              operator: "startsWith",
+              values: ["prefix_"],
+            },
+            {
+              member: "MyCube.myOtherDimension",
+              operator: "beforeDate",
+              values: ["2025-01-01T00:00:00.000Z"],
+            },
+          ],
+        },
+      ],
+    });
   });
 });
