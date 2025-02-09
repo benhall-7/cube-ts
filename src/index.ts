@@ -284,7 +284,15 @@ export class CubeDef<
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
   }
-
+  /**
+   * A function that generates a filter using a binary operation
+   * with correctly-typed inputs
+   * @param member the name of the measure or dimension
+   * @param operator the operator to use in the filter
+   * @param values the array of values to check against
+   * @returns a filter with the member name and values converted
+   * to the correct formats
+   */
   binaryFilter<Member extends keyof (Measures & Dimensions) & string>({
     member,
     operator,
@@ -306,11 +314,23 @@ export class CubeDef<
       values: values.map((value) => members[member].serialize(value)),
     };
   }
-
-  unaryFilter<Member extends keyof (Measures & Dimensions) & string>(args: {
+  /**
+   * A function that generates a filter using a unary operation
+   * @param member the name of the measure or dimension
+   * @param operator the operator to use in the filter
+   * @returns a filter with the member name converted to the
+   * correct format
+   */
+  unaryFilter<Member extends keyof (Measures & Dimensions) & string>({
+    member,
+    operator,
+  }: {
     member: Member;
     operator: UnaryOperator;
   }) {
-    return args;
+    return {
+      member: this.member(member),
+      operator,
+    };
   }
 }

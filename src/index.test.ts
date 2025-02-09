@@ -69,7 +69,7 @@ describe(CubeDef, () => {
         {
           or: [
             { member: "MyCube.myMeasure", operator: "gte", values: ["100"] },
-            { member: "myOther", operator: "set" },
+            { member: "MyCube.myOther", operator: "set" },
             {
               member: "MyCube.myThird",
               operator: "startsWith",
