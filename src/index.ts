@@ -1,13 +1,23 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  Filter,
-  TimeDimensionComparison,
   TimeDimensionPredefinedGranularity,
-  type Query,
+  UnaryOperator,
 } from "@cubejs-client/core";
 
-import { MemberConfig, Keys, Row, FilterType } from "./base";
-import { filterBuilder, FilterBuilder, FilterResult } from "./filter";
+/**
+ * The "type" of the filter operations which can be used
+ */
+export type FilterType = "string" | "number" | "time" | "none";
+/**
+ * The object
+ */
+export type MemberConfig<T, FT extends FilterType> = {
+  filter: FT;
+  deserialize: (input: unknown) => T;
+  serialize: (input: T) => string;
+};
+
+type Keys = Record<string, MemberConfig<any, any>>;
 
 /**
  * A convenience method for eliding the type param T when
@@ -75,7 +85,7 @@ export const m = {
    * strings with values of "true" or "false". Defaults to false.
    */
   boolean: elideMember({
-    filter: "string",
+    filter: "none",
     deserialize: (input: unknown) => {
       if (typeof input === "string") {
         return input !== "false";
@@ -84,6 +94,10 @@ export const m = {
     },
     serialize: String,
   }),
+  /**
+   * A configuration that reads numbers. The deserializer expects
+   * strings with parsable values. Defaults to 0.
+   */
   number: elideMember({
     filter: "number",
     deserialize: (input: unknown) => {
@@ -103,13 +117,32 @@ export type Time<Dimensions extends Keys> = {
 };
 
 type MemberType<Member> = Member extends MemberConfig<infer T, any> ? T : never;
+type MemberFilterType<Member> = Member extends MemberConfig<any, infer T>
+  ? T
+  : never;
 
-/**
-type ExtractTimeMembers<T> =
-    T extends readonly [infer First, ...infer Rest]
-    ? ExtractTimeMember<First> | ExtractTimeMembers<Rest>
-    : never;
-*/
+type ValidBinaryFilters = {
+  string:
+    | "equals"
+    | "notEquals"
+    | "contains"
+    | "notContains"
+    | "startsWith"
+    | "notStartsWith"
+    | "endsWith"
+    | "notEndsWith";
+  number: "equals" | "notEquals" | "gt" | "gte" | "lt" | "lte";
+  time:
+    | "equals"
+    | "notEquals"
+    | "inDateRange"
+    | "notInDateRange"
+    | "beforeDate"
+    | "beforeOrOnDate"
+    | "afterDate"
+    | "afterOrOnDate";
+  none: "equals" | "notEquals";
+};
 
 /**
  * A class for encapsulating a cube, which should reflect the
@@ -231,7 +264,7 @@ export class CubeDef<
       compareDateRange: compareDateRange.map((dateRange) =>
         typeof dateRange === "string"
           ? dateRange
-          : ([serialize(dateRange[0]), serialize(dateRange[0])] as const)
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const)
       ),
     };
   }
@@ -250,5 +283,34 @@ export class CubeDef<
     member: Member
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
+  }
+
+  binaryFilter<Member extends keyof (Measures & Dimensions) & string>({
+    member,
+    operator,
+    values,
+  }: {
+    member: Member;
+    operator: ValidBinaryFilters[MemberFilterType<
+      (Measures & Dimensions)[Member]
+    >];
+    values: MemberType<(Measures & Dimensions)[Member]>[];
+  }) {
+    const members = {
+      ...this.measures,
+      ...this.dimensions,
+    };
+    return {
+      member: this.member(member),
+      operator,
+      values: values.map((value) => members[member].serialize(value)),
+    };
+  }
+
+  unaryFilter<Member extends keyof (Measures & Dimensions) & string>(args: {
+    member: Member;
+    operator: UnaryOperator;
+  }) {
+    return args;
   }
 }
