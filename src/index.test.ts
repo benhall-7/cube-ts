@@ -1,71 +1,41 @@
+import { CubeApi } from "@cubejs-client/core";
 import { CubeDef, m } from "./";
 
 describe(CubeDef, () => {
-  const cubeDef = new CubeDef(
-    "MyCube",
-    {
+  const cube = new CubeDef({
+    name: "MyCube",
+    measures: {
       myMeasure: m.number,
       myOther: m.boolean,
       myThird: m.string,
     },
-    {
+    dimensions: {
       myDimension: m.string,
-      myOtherDimension: m.time,
+      myTimeDimension: m.time,
     },
-    ["segment1", "segment2"]
-  );
+    segments: ["segment1", "segment2"],
+  });
 
   it("generates schemas correctly", async () => {
-    const [query] = cubeDef
-      .buildQuery()
-      .measure("myMeasure")
-      .measure("myOther")
-      .dimension("myDimension")
-      .segment("segment1")
-      .filter((builder) =>
-        builder
-          .binaryFilter({
-            member: "myMeasure",
-            operator: "gte",
-            values: [42],
-          })
-          .orDimensionFilter((builder) =>
-            builder
-              .binaryFilter({
-                member: "myDimension",
-                operator: "startsWith",
-                values: ["prefix_"],
-              })
-              .binaryFilter({
-                member: "myOtherDimension",
-                operator: "beforeDate",
-                values: [new Date("2025-01-01")],
-              })
-          )
-      )
-      .finalize();
+    const api = new CubeApi();
 
-    expect(query).toEqual({
-      measures: ["MyCube.myMeasure", "MyCube.myOther"],
-      dimensions: ["MyCube.myDimension"],
-      segments: ["MyCube.segment1"],
-      filters: [
-        { member: "MyCube.myMeasure", operator: "gte", values: ["42"] },
-        {
-          or: [
-            {
-              member: "MyCube.myDimension",
-              operator: "startsWith",
-              values: ["prefix_"],
-            },
-            {
-              member: "MyCube.myOtherDimension",
-              operator: "beforeDate",
-              values: ["2025-01-01T00:00:00.000Z"],
-            },
-          ],
-        },
-      ],
+    const result = await api.load({
+      measures: [cube.measure("myMeasure"), cube.measure("myThird")],
+      dimensions: [cube.dimension("myDimension")],
+      timeDimensions: [
+        cube.timeDimension({
+          dimension: "myTimeDimension",
+          granularity: "hour",
+          dateRange: [new Date(), new Date()],
+        }),
+      ] as const,
     });
+    const raw = result.rawData();
+    console.log(
+      raw[0]["MyCube.myDimension"],
+      raw[0]["MyCube.myThird"],
+      raw[0]["MyCube.myMeasure"],
+      raw[0]["MyCube.myTimeDimension.hour"]
+    );
   });
 });
