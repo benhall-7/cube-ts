@@ -1,5 +1,5 @@
 {
-  "name": "cube-ts",
+  "name": "@benhall-7/cube-ts",
   "version": "0.1.0",
   "description": "A TypeScript utility for handling type-safe interactions with cube.js cubes",
   "keywords": [
