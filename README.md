@@ -81,7 +81,7 @@ This does come at the cost of some redundancy, because it requires the user to s
 Because the cube member type is designed to be generic, a user can choose to define their own and use that instead. For example, you could use `dayjs` instead of `Date`; or you could create a type with custom serialization/deserialization, like so:
 
 ```typescript
-import { config } from "cube-ts";
+import { elideMember } from "cube-ts";
 
 const myCBool = elideMember({
   filter: "none",
