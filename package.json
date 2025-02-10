@@ -27,9 +27,15 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "tsup": {
+    "entry": ["src/index.ts"],
+    "splitting": false,
+    "sourcemap": true,
+    "clean": true
+  },
   "scripts": {
     "test": "jest",
-    "build": "npx tsup src/index.ts",
+    "build": "npx tsup",
     "lint": "npx eslint",
     "format": "npx prettier --write \"src/**/*.+(js|ts|json)\""
   },

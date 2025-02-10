@@ -36,7 +36,7 @@ type Keys = Record<string, MemberConfig<any, any>>;
  * type T automatically elided based on context
  */
 export function elideMember<T, FT extends FilterType>(
-  member: MemberConfig<T, FT>
+  member: MemberConfig<T, FT>,
 ) {
   return member;
 }
@@ -117,9 +117,8 @@ export type Time<Dimensions extends Keys> = {
 };
 
 type MemberType<Member> = Member extends MemberConfig<infer T, any> ? T : never;
-type MemberFilterType<Member> = Member extends MemberConfig<any, infer T>
-  ? T
-  : never;
+type MemberFilterType<Member> =
+  Member extends MemberConfig<any, infer T> ? T : never;
 
 type ValidBinaryFilters = {
   string:
@@ -152,7 +151,7 @@ export class CubeDef<
   Name extends string,
   Measures extends Keys,
   Dimensions extends Keys,
-  Segments extends string
+  Segments extends string,
 > {
   readonly name: Name;
   readonly measures: Measures;
@@ -181,7 +180,7 @@ export class CubeDef<
    * @returns the "full path" of the cube measure
    */
   measure<Member extends keyof Measures & string>(
-    member: Member
+    member: Member,
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
   }
@@ -190,7 +189,7 @@ export class CubeDef<
    * @returns the "full path" of the cube dimension
    */
   dimension<Member extends keyof Dimensions & string>(
-    member: Member
+    member: Member,
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
   }
@@ -203,7 +202,7 @@ export class CubeDef<
    */
   timeDimension<
     TimeDimension extends keyof Time<Dimensions> & string,
-    Granularity extends TimeDimensionPredefinedGranularity
+    Granularity extends TimeDimensionPredefinedGranularity,
   >({
     dimension,
     granularity,
@@ -215,7 +214,7 @@ export class CubeDef<
       | string
       | [
           MemberType<Dimensions[TimeDimension]>,
-          MemberType<Dimensions[TimeDimension]>
+          MemberType<Dimensions[TimeDimension]>,
         ];
   }) {
     const name = this.name;
@@ -239,7 +238,7 @@ export class CubeDef<
    */
   timeDimensionComparison<
     TimeDimension extends keyof Time<Dimensions> & string,
-    Granularity extends TimeDimensionPredefinedGranularity
+    Granularity extends TimeDimensionPredefinedGranularity,
   >({
     dimension,
     granularity,
@@ -251,7 +250,7 @@ export class CubeDef<
       | string
       | [
           MemberType<Dimensions[TimeDimension]>,
-          MemberType<Dimensions[TimeDimension]>
+          MemberType<Dimensions[TimeDimension]>,
         ]
     >;
   }) {
@@ -264,11 +263,11 @@ export class CubeDef<
       compareDateRange: compareDateRange.map((dateRange) =>
         typeof dateRange === "string"
           ? dateRange
-          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const)
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const),
       ),
     };
   }
-  
+
   /**
    * Creates a strongly typed time dimension, without granularity
    * @param dimension the name of the dimension
@@ -286,7 +285,7 @@ export class CubeDef<
       | string
       | [
           MemberType<Dimensions[TimeDimension]>,
-          MemberType<Dimensions[TimeDimension]>
+          MemberType<Dimensions[TimeDimension]>,
         ];
   }) {
     const name = this.name;
@@ -318,7 +317,7 @@ export class CubeDef<
       | string
       | [
           MemberType<Dimensions[TimeDimension]>,
-          MemberType<Dimensions[TimeDimension]>
+          MemberType<Dimensions[TimeDimension]>,
         ]
     >;
   }) {
@@ -330,7 +329,7 @@ export class CubeDef<
       compareDateRange: compareDateRange.map((dateRange) =>
         typeof dateRange === "string"
           ? dateRange
-          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const)
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const),
       ),
     };
   }
@@ -346,7 +345,7 @@ export class CubeDef<
    * @returns the "full path" of the cube member
    */
   member<Member extends keyof (Measures & Dimensions) & string>(
-    member: Member
+    member: Member,
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
   }
@@ -355,11 +354,11 @@ export class CubeDef<
    * example: `MyCube.someTimeDimension.day`
    * @param dimension the name of the dimension
    * @param granularity the granularity
-   * @returns 
+   * @returns
    */
   timeDimensionKey<
     TimeDimension extends keyof Time<Dimensions> & string,
-    Granularity extends TimeDimensionPredefinedGranularity
+    Granularity extends TimeDimensionPredefinedGranularity,
   >(dimension: TimeDimension, granularity: Granularity) {
     return `${this.name}.${dimension}.${granularity}` as const;
   }
@@ -428,8 +427,8 @@ export class CubeDef<
     InputDimensions extends readonly (keyof Dimensions & string)[],
     InputTimeDimensions extends readonly [
       keyof Time<Dimensions> & string,
-      TimeDimensionPredefinedGranularity
-    ][]
+      TimeDimensionPredefinedGranularity,
+    ][],
   >({
     measures,
     dimensions,
@@ -444,27 +443,40 @@ export class CubeDef<
         ...this.measures,
         ...this.dimensions,
       };
-      const measuresParsers = measures.reduce((acc, measure) => {
-        acc[measure] = allMembers[measure].deserialize(
-          input[this.measure(measure)]
-        );
-        return acc;
-      }, {} as { [K in InputMeasures[number]]: MemberType<Measures[K]> });
+      const measuresParsers = measures.reduce(
+        (acc, measure) => {
+          acc[measure] = allMembers[measure].deserialize(
+            input[this.measure(measure)],
+          );
+          return acc;
+        },
+        {} as { [K in InputMeasures[number]]: MemberType<Measures[K]> },
+      );
 
-      const dimensionsParsers = dimensions.reduce((acc, dimension) => {
-        acc[dimension] = allMembers[dimension].deserialize(
-          input[this.dimension(dimension)]
-        );
-        return acc;
-      }, {} as { [K in InputDimensions[number]]: MemberType<Dimensions[K]> });
+      const dimensionsParsers = dimensions.reduce(
+        (acc, dimension) => {
+          acc[dimension] = allMembers[dimension].deserialize(
+            input[this.dimension(dimension)],
+          );
+          return acc;
+        },
+        {} as { [K in InputDimensions[number]]: MemberType<Dimensions[K]> },
+      );
 
-      const timeDimensionsParsers = timeDimensions.reduce((acc, dimension) => {
-        const key = `${dimension[0]}.${dimension[1]}` as const;
-        acc[key] = allMembers[dimension[0]].deserialize(
-          input[this.timeDimensionKey(dimension[0], dimension[1])]
-        );
-        return acc;
-      }, {} as { [K in InputTimeDimensions[number] as `${K[0]}.${K[1]}`]: MemberType<Dimensions[K[0]]> });
+      const timeDimensionsParsers = timeDimensions.reduce(
+        (acc, dimension) => {
+          const key = `${dimension[0]}.${dimension[1]}` as const;
+          acc[key] = allMembers[dimension[0]].deserialize(
+            input[this.timeDimensionKey(dimension[0], dimension[1])],
+          );
+          return acc;
+        },
+        {} as {
+          [K in InputTimeDimensions[number] as `${K[0]}.${K[1]}`]: MemberType<
+            Dimensions[K[0]]
+          >;
+        },
+      );
 
       return {
         ...measuresParsers,
