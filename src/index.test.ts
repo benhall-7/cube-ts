@@ -4,26 +4,31 @@ describe(CubeDef, () => {
   const cube = new CubeDef({
     name: "MyCube",
     measures: {
-      myMeasure: m.number,
-      myOther: m.boolean,
-      myThird: m.string,
+      myNumber: m.number,
+      myBool: m.boolean,
+      myString: m.string,
     },
     dimensions: {
-      myDimension: m.string,
+      myStringDimension: m.string,
       myTimeDimension: m.time,
+      myOtherTimeDimension: m.time,
     },
     segments: ["segment1", "segment2"],
   });
 
   it("generates schemas correctly", async () => {
     const query = {
-      measures: [cube.measure("myMeasure"), cube.measure("myThird")],
-      dimensions: [cube.dimension("myDimension")],
+      measures: [cube.measure("myNumber"), cube.measure("myString")],
+      dimensions: [cube.dimension("myStringDimension")],
       timeDimensions: [
         cube.timeDimension({
           dimension: "myTimeDimension",
           granularity: "hour",
-          dateRange: [new Date("2024-01-01"), new Date("2025-02-09")],
+          dateRange: [new Date("2025-01-01"), new Date("2025-02-09")],
+        }),
+        cube.timeDimensionUngrouped({
+          dimension: "myOtherTimeDimension",
+          dateRange: [new Date("2024-01-01"), new Date("2024-01-02")],
         }),
       ] as const,
       segments: [cube.segment("segment1")],
@@ -31,16 +36,16 @@ describe(CubeDef, () => {
         {
           or: [
             cube.binaryFilter({
-              member: "myMeasure",
+              member: "myNumber",
               operator: "gte",
               values: [100],
             }),
             cube.unaryFilter({
-              member: "myOther",
+              member: "myBool",
               operator: "set",
             }),
             cube.binaryFilter({
-              member: "myThird",
+              member: "myString",
               operator: "startsWith",
               values: ["cool_"],
             }),
@@ -55,23 +60,27 @@ describe(CubeDef, () => {
     };
 
     expect(query).toEqual({
-      measures: ["MyCube.myMeasure", "MyCube.myThird"],
-      dimensions: ["MyCube.myDimension"],
+      measures: ["MyCube.myNumber", "MyCube.myString"],
+      dimensions: ["MyCube.myStringDimension"],
       timeDimensions: [
         {
-          dateRange: ["2024-01-01T00:00:00.000Z", "2024-01-01T00:00:00.000Z"],
+          dateRange: ["2025-01-01T00:00:00.000Z", "2025-02-09T00:00:00.000Z"],
           dimension: "MyCube.myTimeDimension",
           granularity: "hour",
+        },
+        {
+          dateRange: ["2024-01-01T00:00:00.000Z", "2024-01-02T00:00:00.000Z"],
+          dimension: "MyCube.myOtherTimeDimension",
         },
       ],
       segments: ["MyCube.segment1"],
       filters: [
         {
           or: [
-            { member: "MyCube.myMeasure", operator: "gte", values: ["100"] },
-            { member: "MyCube.myOther", operator: "set" },
+            { member: "MyCube.myNumber", operator: "gte", values: ["100"] },
+            { member: "MyCube.myBool", operator: "set" },
             {
-              member: "MyCube.myThird",
+              member: "MyCube.myString",
               operator: "startsWith",
               values: ["cool_"],
             },
@@ -84,5 +93,35 @@ describe(CubeDef, () => {
         },
       ],
     });
+  });
+
+  it("deserializes a request response according to a schema", () => {
+    const response = {
+      [cube.measure("myNumber")]: "20",
+      [cube.measure("myString")]: "some string",
+      [cube.dimension("myStringDimension")]: "some other string",
+      [cube.timeDimensionKey("myTimeDimension", "day")]: "2025-01-01",
+      [cube.timeDimensionKey("myOtherTimeDimension", "hour")]: "2025-01-02",
+    };
+
+    const deserializer = cube.deserializer({
+      measures: ["myNumber", "myString"],
+      dimensions: ["myStringDimension"],
+      timeDimensions: [
+        ["myTimeDimension", "day"],
+        ["myOtherTimeDimension", "hour"],
+      ],
+    });
+
+    const result = deserializer(response);
+
+    expect(result).toEqual({
+      myNumber: 20,
+      myString: "some string",
+      myStringDimension: "some other string",
+      "myTimeDimension.day": new Date("2025-01-01T00:00:00.000Z"),
+      "myOtherTimeDimension.hour": new Date("2025-01-02T00:00:00.000Z"),
+      // we can verify that the types are inferred too!
+    } as typeof result);
   });
 });

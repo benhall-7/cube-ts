@@ -76,7 +76,7 @@ export const m = {
         }
         return new Date(timestamp);
       }
-      return new Date();
+      return new Date(0);
     },
     serialize: (date: Date) => date.toISOString(),
   }),
@@ -227,14 +227,14 @@ export class CubeDef<
       dateRange:
         typeof dateRange === "string"
           ? dateRange
-          : ([serialize(dateRange[0]), serialize(dateRange[0])] as const),
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const),
     };
   }
   /**
    * Creates a strongly typed time dimension, with a compareDateRange array
    * @param dimension the name of the dimension
    * @param granularity the granularity level
-   * @param compareDateRange the date range (typed)
+   * @param compareDateRange the date ranges (typed)
    * @returns an object that can be plugged into the timeDimensions array
    */
   timeDimensionComparison<
@@ -268,11 +268,77 @@ export class CubeDef<
       ),
     };
   }
+  
+  /**
+   * Creates a strongly typed time dimension, without granularity
+   * @param dimension the name of the dimension
+   * @param dateRange the date range (typed)
+   * @returns an object that can be plugged into the timeDimensions array
+   */
+  timeDimensionUngrouped<
+    TimeDimension extends keyof Time<Dimensions> & string,
+  >({
+    dimension,
+    dateRange,
+  }: {
+    dimension: TimeDimension;
+    dateRange:
+      | string
+      | [
+          MemberType<Dimensions[TimeDimension]>,
+          MemberType<Dimensions[TimeDimension]>
+        ];
+  }) {
+    const name = this.name;
+    const serialize = this.dimensions[dimension].serialize;
+
+    return {
+      dimension: `${name}.${dimension}` as const,
+      dateRange:
+        typeof dateRange === "string"
+          ? dateRange
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const),
+    };
+  }
+  /**
+   * Creates a strongly typed time dimension, with a compareDateRange array,
+   * but without granularity
+   * @param dimension the name of the dimension
+   * @param compareDateRange the date ranges (typed)
+   * @returns an object that can be plugged into the timeDimensions array
+   */
+  timeDimensionComparisonUngrouped<
+    TimeDimension extends keyof Time<Dimensions> & string,
+  >({
+    dimension,
+    compareDateRange,
+  }: {
+    dimension: TimeDimension;
+    compareDateRange: Array<
+      | string
+      | [
+          MemberType<Dimensions[TimeDimension]>,
+          MemberType<Dimensions[TimeDimension]>
+        ]
+    >;
+  }) {
+    const name = this.name;
+    const serialize = this.dimensions[dimension].serialize;
+
+    return {
+      dimension: `${name}.${dimension}` as const,
+      compareDateRange: compareDateRange.map((dateRange) =>
+        typeof dateRange === "string"
+          ? dateRange
+          : ([serialize(dateRange[0]), serialize(dateRange[1])] as const)
+      ),
+    };
+  }
   /**
    * @param name the name of the segment
    * @returns the "full path" of the cube segment (as a string)
    */
-  segment(name: Segments): string {
+  segment<Segment extends Segments>(name: Segment): `${Name}.${Segment}` {
     return `${this.name}.${name}`;
   }
   /**
@@ -283,6 +349,19 @@ export class CubeDef<
     member: Member
   ): `${typeof this.name}.${Member}` {
     return `${this.name}.${member}`;
+  }
+  /**
+   * A utility function to produce a fully typed time dimension key. For
+   * example: `MyCube.someTimeDimension.day`
+   * @param dimension the name of the dimension
+   * @param granularity the granularity
+   * @returns 
+   */
+  timeDimensionKey<
+    TimeDimension extends keyof Time<Dimensions> & string,
+    Granularity extends TimeDimensionPredefinedGranularity
+  >(dimension: TimeDimension, granularity: Granularity) {
+    return `${this.name}.${dimension}.${granularity}` as const;
   }
   /**
    * A function that generates a filter using a binary operation
@@ -331,6 +410,67 @@ export class CubeDef<
     return {
       member: this.member(member),
       operator,
+    };
+  }
+
+  /**
+   * a function that creates a deserializer, which the user can use to parse
+   * the cube response rows into a strongly typed object
+   * @param measures the array of measures
+   * @param dimensions the array of dimensions
+   * @param timeDimensions the array of time dimension tuples in the form
+   * [dimension, granularity]
+   * @returns a callback that takes an object and returns that object parsed
+   * using the expected columns and associated types
+   */
+  deserializer<
+    InputMeasures extends readonly (keyof Measures & string)[],
+    InputDimensions extends readonly (keyof Dimensions & string)[],
+    InputTimeDimensions extends readonly [
+      keyof Time<Dimensions> & string,
+      TimeDimensionPredefinedGranularity
+    ][]
+  >({
+    measures,
+    dimensions,
+    timeDimensions,
+  }: {
+    measures: InputMeasures;
+    dimensions: InputDimensions;
+    timeDimensions: InputTimeDimensions;
+  }) {
+    return (input: Record<string, unknown>) => {
+      const allMembers = {
+        ...this.measures,
+        ...this.dimensions,
+      };
+      const measuresParsers = measures.reduce((acc, measure) => {
+        acc[measure] = allMembers[measure].deserialize(
+          input[this.measure(measure)]
+        );
+        return acc;
+      }, {} as { [K in InputMeasures[number]]: MemberType<Measures[K]> });
+
+      const dimensionsParsers = dimensions.reduce((acc, dimension) => {
+        acc[dimension] = allMembers[dimension].deserialize(
+          input[this.dimension(dimension)]
+        );
+        return acc;
+      }, {} as { [K in InputDimensions[number]]: MemberType<Dimensions[K]> });
+
+      const timeDimensionsParsers = timeDimensions.reduce((acc, dimension) => {
+        const key = `${dimension[0]}.${dimension[1]}` as const;
+        acc[key] = allMembers[dimension[0]].deserialize(
+          input[this.timeDimensionKey(dimension[0], dimension[1])]
+        );
+        return acc;
+      }, {} as { [K in InputTimeDimensions[number] as `${K[0]}.${K[1]}`]: MemberType<Dimensions[K[0]]> });
+
+      return {
+        ...measuresParsers,
+        ...dimensionsParsers,
+        ...timeDimensionsParsers,
+      };
     };
   }
 }
