@@ -30,12 +30,12 @@
   "tsup": {
     "entry": ["src/index.ts"],
     "splitting": false,
-    "sourcemap": true,
+    "sourcemap": false,
     "clean": true
   },
   "scripts": {
     "test": "jest",
-    "build": "npx tsup",
+    "build": "npx tsup --dts",
     "lint": "npx eslint",
     "format": "npx prettier --write \"src/**/*.+(js|ts|json)\""
   },

@@ -116,8 +116,8 @@ export type Time<Dimensions extends Keys> = {
     : never]: Dimensions[K];
 };
 
-type MemberType<Member> = Member extends MemberConfig<infer T, any> ? T : never;
-type MemberFilterType<Member> =
+export type MemberType<Member> = Member extends MemberConfig<infer T, any> ? T : never;
+export type MemberFilterType<Member> =
   Member extends MemberConfig<any, infer T> ? T : never;
 
 type ValidBinaryFilters = {
