@@ -1,6 +1,6 @@
 {
   "name": "cube-ts",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "A TypeScript utility for handling type-safe interactions with cube.js cubes",
   "keywords": [
     "cube.js",
@@ -58,6 +58,6 @@
     "typescript-eslint": "^8.22.0"
   },
   "dependencies": {
-    "@cubejs-client/core": "^1.1.12"
+    "@cubejs-client/core": "^1.1"
   }
 }
