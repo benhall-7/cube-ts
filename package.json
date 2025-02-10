@@ -1,6 +1,6 @@
 {
   "name": "cube-ts",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A TypeScript utility for handling type-safe interactions with cube.js cubes",
   "keywords": [
     "cube.js",
@@ -17,26 +17,25 @@
   "license": "MIT",
   "author": "Benjamin Hall",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.esn.js",
-  "typings": "dist/index.d.ts",
+  "main": "dist/index.cjs",
+  "typings": "dist/index.d.cts",
   "exports": {
     ".": {
-      "require": "./dist/index.js",
-      "import": "./dist/index.esm.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.cts"
     }
   },
   "tsup": {
     "entry": ["src/index.ts"],
     "splitting": false,
     "sourcemap": false,
-    "clean": true
+    "clean": true,
+    "dts": true
   },
   "scripts": {
     "test": "jest",
-    "build": "npx tsup --dts",
-    "lint": "npx eslint",
+    "build": "npx tsup",
+    "lint": "npx eslint \"src/*\"",
     "format": "npx prettier --write \"src/**/*.+(js|ts|json)\""
   },
   "jest": {
