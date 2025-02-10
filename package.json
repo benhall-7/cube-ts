@@ -36,7 +36,8 @@
     "test": "jest",
     "build": "npx tsup",
     "lint": "npx eslint \"src/*\"",
-    "format": "npx prettier --write \"src/**/*.+(js|ts|json)\""
+    "reformat": "npx prettier --write \"src/**/*.+(js|ts|json)\"",
+    "format": "npx prettier --check \"src/**/*.+(js|ts|json)\""
   },
   "jest": {
     "preset": "ts-jest",

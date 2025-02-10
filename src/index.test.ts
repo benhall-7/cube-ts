@@ -115,13 +115,12 @@ describe(CubeDef, () => {
 
     const result = deserializer(response);
 
-    expect(result).toEqual({
+    expect(result).toEqual<typeof result>({
       myNumber: 20,
       myString: "some string",
       myStringDimension: "some other string",
       "myTimeDimension.day": new Date("2025-01-01T00:00:00.000Z"),
       "myOtherTimeDimension.hour": new Date("2025-01-02T00:00:00.000Z"),
-      // we can verify that the types are inferred too!
-    } as typeof result);
+    });
   });
 });
